@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Button, FlatList, StyleSheet, View } from 'react-native';
+import { Alert, Button, FlatList, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import GoalInput from './components/GoalInput';
 import GoalItem from './components/GoalItem';
 import * as Notifications from 'expo-notifications';
+import { PUSH_TOKEN } from "@env";
+
 
 Notifications.setNotificationHandler({
   handleNotification: async () => {
@@ -16,6 +18,40 @@ Notifications.setNotificationHandler({
 });
 
 export default function App() {
+  useEffect(() => {
+    async function configurePushNotifications() {
+      const { status } = await Notifications.getPermissionsAsync();
+      let finalStatus = status;
+
+      if (finalStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+
+      if (finalStatus !== 'granted') {
+        Alert.alert(
+          'Permission required',
+          'Push notifications need the appropriate permissions.'
+        );
+        return;
+      }
+
+      // const pushTokenData = await Notifications.getExpoPushTokenAsync();
+      // console.log(pushTokenData);
+
+      if (Platform.OS === 'android') {
+        Notifications.setNotificationChannelAsync('default', {
+          name: 'default',
+          importance: Notifications.AndroidImportance.DEFAULT
+        });
+      }
+    }
+
+    configurePushNotifications();
+
+  }, []);
+
+
   useEffect(() => {
     const subscription1 = Notifications.addNotificationReceivedListener((notification) => {
       console.log('Notification received');
@@ -72,14 +108,29 @@ export default function App() {
       }
     });
   }
-
+  function sendPushNotificationHandler() {
+    fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        to: `${PUSH_TOKEN}`,
+        title: 'Test- sent from a device',
+        body: 'This is a test!'
+      })
+    });
+  }
   return (
     <>
       <StatusBar style='light' />
       <View style={styles.appContainer}>
         <Button title='Add New Goal' color='#5e0acc' onPress={startAddGoalHandler}/>
         <View style={styles.extraButton}>
-          <Button title='Schedule Notification' color='#5e0acc' onPress={scheduleNotificationHandler} />
+          <Button title='Schedule Local Notification' color='#5e0acc' onPress={scheduleNotificationHandler} />
+        </View>
+        <View style={styles.extraButton}>
+          <Button title='Send Push Notification' color='#5e0acc' onPress={sendPushNotificationHandler} />
         </View>
         <GoalInput 
         visible={modalIsVisible} 
@@ -110,7 +161,6 @@ const styles = StyleSheet.create({
     flex: 5
   },
   extraButton: {
-    marginVertical: 12,
-    paddingTop: 4
+    marginTop: 10,
   }
 });
